@@ -12,26 +12,38 @@
         "src/dyncall/dyncall/dyncall_struct.c",
         "src/dyncall/dyncall/dyncall_vector.c",
         "src/dyncall/dyncall/dyncall_callvm_base.c",
-        "src/dyncall/dyncall/dyncall_callvm_x64.c",
       ],
+      'msvs_settings': {
+        # By default, msvs passes /SAFESEH for Link, but not for MASM.
+        # In order for test_safeseh_default to link successfully, we need to explicitly specify /SAFESEH for MASM.
+        # ia32 only ?
+        'MASM': {
+          'UseSafeExceptionHandlers': 'true',
+        },
+      },
       'conditions': [
         [
+          # How to test for ia32 vs x64 arch ?
           'OS=="win_x86"', 
           {
             "sources": [
               "src/dyncall/dyncall/dyncall_callvm_x86.c",
+              "src/dyncall/dyncall/dyncall_call_x86_generic_masm.asm",
             ],
-            "libraries": [
-              "C:\\Users\\kljh\\Documents\\Code\\GitHub\\xllcall\\src/dyncall/dyncall/dyncall_call_x86_generic_masm.asm.obj",
-            ]
+            # Include ASM file above rather than pre-compiled OBJ file below
+            # "libraries": [
+            #   "<!(cd)/src/dyncall/dyncall/dyncall_call_x86_generic_masm.asm.obj",
+            # ]
           },
           {
             "sources": [
               "src/dyncall/dyncall/dyncall_callvm_x64.c",
+              "src/dyncall/dyncall/dyncall_call_x64_generic_masm.asm",
             ],
-            "libraries": [
-              "C:\\Users\\kljh\\Documents\\Code\\GitHub\\xllcall\\src/dyncall/dyncall/dyncall_call_x64_generic_masm.asm.obj",
-            ]
+            # Include ASM file above rather than pre-compiled OBJ file below
+            # "libraries": [
+            #   "!(cd)/src/dyncall/dyncall/dyncall_call_x64_generic_masm.asm.obj",
+            # ]
           },
         ], 
       ],

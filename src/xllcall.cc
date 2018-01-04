@@ -101,7 +101,7 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
 	void* free12_ptr = get_fct_ptr(xll_path, "xlAutoFree12");
 	if (!fct_ptr && !module_handler_cache[xll_path]) {
 		isolate->ThrowException(v8::Exception::TypeError(
-			v8::String::NewFromUtf8(isolate, "could not load XLL")));
+			v8::String::NewFromUtf8(isolate, "could not load XLL (check x86 vs x64 arch)")));
 		return;
 	}
 	if (!fct_ptr) {
@@ -265,11 +265,12 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
 			else if (_stricmp(arg_type, "bool") == 0)
 			{
 				if (missing_arg) {
-          dcArgBool(vm, false);
+					dcArgBool(vm, false);
         } else {
 					bool b;
 					if (!v8value_2_native(isolate, arg_val, b)) return;
-          dcArgBool(vm, b);
+					short int sib = (short int)b;
+					dcArgBool(vm, sib);
 				}
 			} 
 			//else if (_stricmp(arg_type, "int32") == 0)
@@ -310,14 +311,16 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
 			printf("dcFree...\n");
 			dcFree(vm); vm = 0;
 			
-			if (xop->xltype & xlbitDLLFree)
+			if (xop->xltype & xlbitDLLFree) {
 				if (free12_ptr)
 					((xlAutoFree12_t)free12_ptr)(xop);
 				else {
+					fprintf(stderr, "no xlAutoFree12 function");
 					isolate->ThrowException(v8::Exception::TypeError(
 						v8::String::NewFromUtf8(isolate, "no xlAutoFree12 function")));
 					return;
 				}
+			}
 		}
 		else if (_stricmp(fct_type, "XLOPER*") == 0)
 		{
@@ -331,15 +334,17 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
      	// free 
 			dcFree(vm); vm = 0;
 
-      if (xop->xltype & xlbitDLLFree) 
+      if (xop->xltype & xlbitDLLFree) {
 				if (free_ptr)
 					((xlAutoFree_t)free_ptr)(xop);
 				else {
+					fprintf(stderr, "no xlAutoFree function");
 					isolate->ThrowException(v8::Exception::TypeError(
 						v8::String::NewFromUtf8(isolate, "no xlAutoFree function")));
 					return;
 				}
 			}
+		}
 		else if (_stricmp(fct_type, "double") == 0) 
 		{
 			double d = dcCallDouble(vm, fct_ptr);

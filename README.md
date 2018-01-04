@@ -11,6 +11,12 @@ Invoke XLL functions from Node.
 npm install xllcall
 ```
 
+or, to force 32 bit build for x86 XLLs (requires 32 bit Node)
+
+```sh
+npm install xllcall --arch=ia32
+```
+
 ## API
 
 ```js

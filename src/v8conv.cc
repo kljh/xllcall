@@ -160,9 +160,7 @@ v8::Local<v8::Array> v8Value_to_v8array(v8::Isolate* isolate, size_t arg_pos, co
   return v8::Local<v8::Array>::Cast(v);
 }
 
-bool v8value_2_xloper_scalar(v8::Isolate* isolate, size_t arg_pos, const v8::Local<v8::Value>& v8_val, XLOper& x)
-{
-  if (v8_val->IsString()) {
+bool v8value_2_xloper_string(v8::Isolate* isolate, const v8::Local<v8::Value>& v8_val, XLOper& x) {
     std::string s;
     if (!v8value_2_native(isolate, v8_val, s)) return false;
     size_t n = std::min(s.size(), (size_t)254);
@@ -171,8 +169,29 @@ bool v8value_2_xloper_scalar(v8::Isolate* isolate, size_t arg_pos, const v8::Loc
     x.val.str = new char[n+2];
     x.val.str[0] = n;
     x.val.str[n+1] = '\0';
-    memcpy(x.val.str+1, s.c_str(), n);
-    
+    memcpy(x.val.str+1, s.c_str(), n); 
+    return true;
+}
+
+bool v8value_2_xloper_string(v8::Isolate* isolate, const v8::Local<v8::Value>& v8_val, XLOper12& x) {
+    std::wstring s;
+    if (!v8value_2_native(isolate, v8_val, s)) return false;
+    size_t n = std::min(s.size(), (size_t)65534);
+
+    x.xltype = xltypeStr | xlbitDLLFree;
+    x.val.str = new wchar_t[n+2];
+    x.val.str[0] = n;
+    x.val.str[n+1] = '\0';
+    memcpy(((char*)x.val.str)+2, s.c_str(), n*2); 
+    return true;
+}
+
+template <class X>
+bool v8value_2_xloper_scalar(v8::Isolate* isolate, size_t arg_pos, const v8::Local<v8::Value>& v8_val, X& x)
+{
+  if (v8_val->IsString()) {
+    bool bOk = v8value_2_xloper_string(isolate, v8_val, x);
+    if (!bOk) return false;
   } else if (v8_val->IsNumber()) {
     double d;
     if (!v8value_2_native(isolate, v8_val, d)) return false;
@@ -195,7 +214,8 @@ bool v8value_2_xloper_scalar(v8::Isolate* isolate, size_t arg_pos, const v8::Loc
   return true;
 }
 
-bool v8value_2_xloper_array(v8::Isolate* isolate, size_t arg_pos, const v8::Local<v8::Value>& v8_val, XLOper& x)
+template <class X>
+bool v8value_2_xloper_array(v8::Isolate* isolate, size_t arg_pos, const v8::Local<v8::Value>& v8_val, X& x)
 {
   v8::Local<v8::Array> v8_rows = v8Value_to_v8array(isolate, arg_pos, v8_val);
   if (v8_rows.IsEmpty()) return false;
@@ -213,7 +233,7 @@ bool v8value_2_xloper_array(v8::Isolate* isolate, size_t arg_pos, const v8::Loca
   x.xltype = xltypeMulti | xlbitDLLFree;
   x.val.array.rows = nb_rows;
   x.val.array.columns = nb_cols;
-  x.val.array.lparray = new XLOper[nb_rows*nb_cols];
+  x.val.array.lparray = new X[nb_rows*nb_cols];
   
   // initialise array with sensible default values
   for (size_t i=0, k=0; i<nb_rows; i++)
@@ -224,7 +244,7 @@ bool v8value_2_xloper_array(v8::Isolate* isolate, size_t arg_pos, const v8::Loca
     v8::Local<v8::Array> v8_row = v8Value_to_v8array(isolate, arg_pos, v8_rows->Get(i));
     for (size_t j=0; j<nb_cols; j++) {
       v8::Local<v8::Value> v8_cell = v8_row->Get(j);
-      if (!v8value_2_xloper_scalar(isolate, arg_pos, v8_cell, (XLOper&)x.val.array.lparray[i*nb_cols+j])) return false;
+      if (!v8value_2_xloper_scalar(isolate, arg_pos, v8_cell, (X&)x.val.array.lparray[i*nb_cols+j])) return false;
     }
   }
   return true;
@@ -240,34 +260,9 @@ bool v8value_2_xloper(v8::Isolate* isolate, size_t arg_pos, const v8::Local<v8::
 
 bool v8value_2_xloper(v8::Isolate* isolate, size_t arg_pos, const v8::Local<v8::Value>& v8_val, XLOper12& x)
 {
-  printf("v8value_2_xloper12: %i", (int) x.xltype);
-  return true;
+  if (v8_val->IsArray()) 
+    return v8value_2_xloper_array(isolate, arg_pos, v8_val, x);
+  else
+    return v8value_2_xloper_scalar(isolate, arg_pos, v8_val, x);
 }
 
-
-
-// conversion from xloper
-
-/*
-template <class X>
-void xloper_2_any(X* xop, AnyVal& a) {
-	if (!xop.xltype) {
-		a =  AnyVal(); // ret val
-	} else if (xop->xltype & xltypeNum) {
-		a = xop->val.num;
-	} else if (xop->xltype & xltypeBool) {
-		a =  xop->val.xbool;
-	} else if (xop->xltype & xltypeInt) {
-		a =  xop->val.w;
-	} else if (xop->xltype & xltypeStr) {
-		a =  xloper_char_ptr_2_string(xop->val.str);
-	} else if (xop->xltype & xltypeErr) {
-		a =  AnyVal();
-	} else if (xop->xltype & xltypeNil) {
-		a = AnyVal();
-	} else {
-		throw std::logic_error("XLOper parse to complete");
-	}
-
-}
-*/

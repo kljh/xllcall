@@ -1,4 +1,5 @@
 const fs = require("fs");
+const path = require("path");
 
 // build with npm install
 
@@ -32,9 +33,9 @@ function set_registered_functions(fct_map) {
 function get_registered_functions(xll_path, opt_prms) {
     var prms = opt_prms || {};
     var fct_name = prms.fct_name || "XlXlRegisteredFunctions";
-    var fct_type = prms.fct_type = "xloper*";
-    var arg_types = prms.arg_types = [ "xloper*" ]; // [ "char*", "xloper*", "double"]
-    var arg_vals = prms.arg_vals = []; // [ "abc", [[11,12],[21,22]], 1.234 ]
+    var fct_type = prms.fct_type || "xloper*";
+    var arg_types = prms.arg_types || [ "xloper*" ]; // [ "char*", "xloper*", "double"]
+    var arg_vals = prms.arg_vals || []; // [ "abc", [[11,12],[21,22]], 1.234 ]
     
     //console.log("fct_name", fct_name);
     var fcts = addon.xllcall_ffi_v8(xll_path, fct_name, fct_type, arg_types, arg_vals); 
@@ -69,10 +70,18 @@ function xllcall_proto_check(xl_name) {
         return fct;
 
     var pos = 0;
+    const one_char_pragmas = {
+        "!": "!", 
+        "#": "#", 
+        }; 
     const one_char_types = { 
-        P: "xloper*", 
-        Q: "xloper12*", 
+        P: "xloper*", // array
+        R: "xloper*", // ref or array 
+        Q: "xloper12*",  // array
+        U: "xloper12*",  // ref or array
         B: "double", 
+        A: "bool", 
+        J: "int32", 
         C: "char*", 
         D: "counted char*",
         };
@@ -84,13 +93,17 @@ function xllcall_proto_check(xl_name) {
         if (t) { pos+=2; return t; }
         var t = one_char_types[fct.proto.substr(pos, 1)];
         if (t) { pos++; return t; }
+        var t = one_char_pragmas[fct.proto.substr(pos, 1)];
+        if (t) { pos++; return; }
         throw new Error(xl_name+": unknown type at pos "+pos+" of prototype string "+fct.proto);
     }
 
     fct.fct_type = proto_next_type();
     fct.arg_types = [];
     while (pos<fct.proto.length) {
-        fct.arg_types.push(proto_next_type());
+        var next_arg_type = proto_next_type()
+        if (next_arg_type)
+            fct.arg_types.push(next_arg_type);
     }
     return fct;
 }
@@ -128,7 +141,7 @@ if (!module.parent) {
     // module.parent is null, we're running the main module
 
     if (1) {
-        var xldna_path = "C:\\Users\\kljh\\Documents\\Code\\GitHub\\xllcall\\ExcelDna\\ExcelDna-0.34.6\\ExcelDna\\Distribution\\ExcelDna64.xll"
+        var xldna_path = path.join(__dirname, "ExcelDna\\ExcelDna-0.34.6\\ExcelDna\\Distribution\\ExcelDna64.xll");
         console.log("xldna_path", xldna_path, fs.existsSync(xldna_path));
         
         var xldna_folder = xldna_path.split("\\"); xldna_folder.pop();
@@ -141,7 +154,7 @@ if (!module.parent) {
     }
 
     if (0) {
-        var xll_path = "C:\\Users\\kljh\\Documents\\Code\\GitHub\\xllcall\\Vision.xll";
+        var xll_path = path.join(__dirname, "Vision.xll");
         console.log("xll_path", xll_path, fs.existsSync(xll_path));
         
         var fct_map = get_registered_functions(xll_path);
