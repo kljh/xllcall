@@ -21,8 +21,8 @@ npm install xllcall --arch=ia32
 
 Run server.js, that will start a HTTP server that can receive requests.
 
-If running a 64 bit system and intending to use 32 bit XLLs, then you must modify you launch.json.
-Specify a 32 bit version of node.exe in runtimeExecutable :
+If running a 64 bit system and intending to use 32 bit XLLs, then you must modify you ``launch.json``.
+Specify a 32 bit version of node.exe in ``runtimeExecutable`` :
 ```sh
     {
         "version": "0.2.0",
@@ -38,49 +38,40 @@ Specify a 32 bit version of node.exe in runtimeExecutable :
     }
 ```
 
-## API
+## API Basic use
 
 ```js
 var xllcall = require('xllcall');
-
-// load a XLL triggers the registration of the XLL functions.. 
-xllcall.xllload("myxll.xll");
-// the XLL functions can then be called as with Application.Run
-xllcall.xllcall("myfct", "abc", [[11,12],[21,22]], 1.234 );
-
-// the list of registered functions is available 
-var fcts = xllcall.xllfcts()
 
 // one can also call a function explicitly specifying the signature
 xllcall.xllcall_ffi("myxll.xll", "myfct", [ "xloper", "const char*", "xloper", "double"], [ "abc", [[11 12],[21,22]], 1.234 ]);
 ```
 
-### xllload(xll_name)
+This based on a core function ``xllcall_ffi`` which invokes a XLL function knowiing its signature:
+```js
+xllcall_ffi(xll_name, fct_name, [ return_type, arg_types, ...], [ arg_values, ... ])
+```
 
-### xllcall(fct_name, args_values, ...)
-
-### xllfcts()
-
-### xllcall_ffi(xll_name, fct_name, [ return_type, arg_types, ...], [ arg_values, ... ])
+See ``index.js`` and ``server.js`` for a more advance use, fetching list of XLL exported functions, creative Javascript stub for them and starting a HTTP server for RPC.
 
 ### Conversion Rules between JS and XLL
 
 Argument conversion depends on the expected type for the argument:
 
 * string arguments:
-  * undefined and null become empty strings
+  * ``undefined`` and ``null`` become empty strings
   * numbers and booleans become their text representation
-  * string are assumed to only contain latin1 character (XLL using XL97 API) or UCS2 characters (XLL using XL2007 API)
+  * string are assumed to contain latin1 only characters (for XLL using XL97 API) or UCS2 only characters (for XLL using XL2007 API)
   * array: first value is used (top left value for 2D array)
 
 * number arguments:
-  * undefined and null become empty strings
-  * boolean : true become 1, and false becomes 0
+  * ``undefined`` and ``null`` become empty strings
+  * boolean : ``true`` become ``1``, and ``false`` becomes ``0``
   * array: first value is used (top left value for 2D array)
 
 * Boolean arguments
-  * undefined and null become false
-  * non-zero numbers are become true, zeros become false
+  * ``undefined`` and ``null`` become false
+  * non-zero numbers become ``true``, zeros become ``false``
 
 * Range arguments:
   * one dimensionnal array becomes column ranges
