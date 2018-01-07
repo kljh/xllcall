@@ -1,3 +1,5 @@
+'use strict';  
+
 const fs = require("fs");
 const path = require("path");
 
@@ -5,13 +7,16 @@ const path = require("path");
 
 const addon = require('./build/release/addon');
 
-// add build/Release tot the PATH in order to find xlcall32.dll
-console.log("Add build/Release tot the PATH in order to find xlcall32.dll");
-//console.log("PATH", process.env.PATH.split(';'));
-process.env.PATH = __dirname + "\\build\\Release;" + process.env.PATH;
-console.log("PATH", process.env.PATH.split(';'));
+// set whether the XLLCall should be verbose (C++)
+addon.xllcall_debug_v8(false); 
 
-console.log("CWD", process.cwd());
+// add build/Release tot the PATH in order to find xlcall32.dll
+//console.log("Add build/Release tot the PATH in order to find xlcall32.dll");
+process.env.PATH = __dirname + "\\build\\Release;" + process.env.PATH;
+//console.log("PATH", process.env.PATH.split(';'));
+
+//process.chdir(xll_path)
+//console.log("CWD", process.cwd());
 
 /*
 required keys:
@@ -44,6 +49,8 @@ function get_registered_functions(xll_path, opt_prms) {
     var key_mapping = prms.key_mapping || {
         "procedure": "fct_name",
         "signature": "proto",
+        "module": "xll_path",
+        "entry": "fct_name",
         }
 
     var headers = fcts[0];
@@ -54,7 +61,7 @@ function get_registered_functions(xll_path, opt_prms) {
                 key = key_mapping[key] || key; 
                 entry[key] = val; return entry; 
             }, {});
-            fct_desc.xll_path = xll_path;
+            fct_desc.xll_path = fct_desc.xll_path || xll_path;
             map[row[0]] = fct_desc;
             return map;
         }, {});
@@ -95,7 +102,7 @@ function xllcall_proto_check(xl_name) {
         if (t) { pos++; return t; }
         var t = one_char_pragmas[fct.proto.substr(pos, 1)];
         if (t) { pos++; return; }
-        throw new Error(xl_name+": unknown type at pos "+pos+" of prototype string "+fct.proto);
+        throw new Error(xl_name+": unknown type "+fct.proto.substr(pos, 3)+"... at pos "+pos+" of prototype string "+fct.proto);
     }
 
     fct.fct_type = proto_next_type();
@@ -112,13 +119,28 @@ function xllcall_stub(xl_name) {
     var fct = xllcall_proto_check(xl_name);
     var stub = function() {
         var arg_vals = Array.from(arguments);
-        var res = addon.xllcall_ffi_v8(fct.xll_path, fct.fct_name, fct.fct_type, fct.arg_types, arg_vals); 
+        try {
+            var res = addon.xllcall_ffi_v8(fct.xll_path, fct.fct_name, fct.fct_type, fct.arg_types, arg_vals); 
+        } catch (e) {
+            var nb_args = arg_vals.length;
+            console.error("Error while calling "+xl_name, fct, !nb_args ? " with no args." : " with args:");
+            for (var a=0; a<nb_args; a++)
+                console.error("arg "+(a+1)+"/"+nb_args+": ", arg_vals[a]);
+            throw e;
+        }
         return res;
     }
     return stub;
 }
 
-function xldna_test(xldna_path) {
+function xldna_init(xldna_xll_path) {
+    var xldna_path = xldna_xll_path || path.join(__dirname, "ExcelDna\\ExcelDna-0.34.6\\ExcelDna\\Distribution\\ExcelDna64.xll");
+    if (!fs.existsSync(xldna_path)) 
+        throw new Error("xldna_path does not exist", xldna_path);
+    
+    var xldna_folder = path.dirname(xldna_path);
+    process.env.PATH = xldna_folder + ";" + process.env.PATH;
+    
     set_registered_functions({
         RegistrationInfo : { fct_name: "RegistrationInfo", proto: "QQ", xll_path: xldna_path },
         SyncMacro : { fct_name: "SyncMacro", proto: ">B", xll_path: xldna_path },
@@ -126,44 +148,38 @@ function xldna_test(xldna_path) {
         f1 : { fct_name: "f1", proto: "QC%B", xll_path: xldna_path },
     });
 
-    var RegistrationInfo =  xllcall_stub("RegistrationInfo");
-    //var SyncMacro =  xllcall_stub("SyncMacro");
-    var f0_addthem_97 =  xllcall_stub("f0");
-
-    //var res = RegistrationInfo();
-    //console.log("RegistrationInfo", res);
-    
-    var res = f0_addthem_97("sa",3);
-    console.log("addthem", res);    
-}
-// test 
-if (!module.parent) {
-    // module.parent is null, we're running the main module
-
+    // run test
     if (1) {
-        var xldna_path = path.join(__dirname, "ExcelDna\\ExcelDna-0.34.6\\ExcelDna\\Distribution\\ExcelDna64.xll");
-        console.log("xldna_path", xldna_path, fs.existsSync(xldna_path));
+        var RegistrationInfo =  xllcall_stub("RegistrationInfo");
+        //var SyncMacro =  xllcall_stub("SyncMacro");
+        var f0_addthem_97 =  xllcall_stub("f0");
+
+        //var res = RegistrationInfo();
+        //console.log("RegistrationInfo", res);
         
-        var xldna_folder = xldna_path.split("\\"); xldna_folder.pop();
-        xldna_folder = xldna_folder.join("\\");
-        console.log("xldna_folder", xldna_folder, fs.existsSync(xldna_folder));
-        process.env.PATH = xldna_folder + ";" + process.env.PATH;
-        
-        var xldna_res = xldna_test(xldna_path);
-        console.log("xldna_res", xldna_res);
+        var res = f0_addthem_97("sa",3);
+        console.log("addthem", res);
+    };
+}
+
+function vision_init(vision_xll_path) {
+    var xll_path = vision_xll_path || path.join(__dirname, "vision.xll"); // or path.join(process.env.APPDATA, "vision\\bin\\x86");
+    if (!fs.existsSync(xll_path)) 
+        throw new Error("xll_path does not exist", xll_path);
+    
+    var fct_map = get_registered_functions(xll_path);
+    set_registered_functions(fct_map);
+    // console.log("fct_map",  JSON.stringify(Object.keys(fct_map), null, 4));
+    console.log("#fcts",  Object.keys(fct_map).length);
+    
+    // force stub creation of all functions, and define them ing lobal scope
+    if (1) {
+        for (f in fct_map) 
+            global[f] = xllcall_stub(f);
     }
 
-    if (0) {
-        var xll_path = path.join(__dirname, "Vision.xll");
-        console.log("xll_path", xll_path, fs.existsSync(xll_path));
-        
-        var fct_map = get_registered_functions(xll_path);
-        console.log("fct_map",  JSON.stringify(Object.keys(fct_map), null, 4));
-
-        set_registered_functions(fct_map);
-        for (f in fct_map)
-            xllcall_stub(f);
-
+    // run test
+    if (1) {
         var XlSet = xllcall_stub("XlSet");
         var XlGet = xllcall_stub("XlGet");
         
@@ -176,7 +192,28 @@ if (!module.parent) {
     }
 }
 
-//exports.xllcall_ffi = xllcall_ffi_v8; // invoke the native implementation
-exports.xllcall_ffi = function() {
-    return addon.xllcall_ffi_v8(); // invoke the native implementation
+function top_left(x) {
+    if (Array.isArray(x)) {
+        if (x.length > 0)
+            return top_left(x[0]);
+        else
+            return;
+    } else {
+        return x;
+    }
 }
+
+// test 
+if (!module.parent) {
+    //xldna_init();
+    vision_init();
+}
+
+exports.xllcall_debug = addon.xllcall_debug_v8;   // invoke the native implementation
+exports.xllcall_ffi = addon.xllcall_ffi_v8;       // invoke the native implementation
+exports.xllcall_stub = xllcall_stub;
+exports.top_left = top_left;
+exports.get_registered_functions = get_registered_functions;
+exports.set_registered_functions = set_registered_functions;
+exports.vision_init = vision_init;
+exports.xldna_init = xldna_init;

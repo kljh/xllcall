@@ -1,5 +1,7 @@
 #include <node.h>
 
+void xllcall_debug_v8(const v8::FunctionCallbackInfo<v8::Value>& args);
+
 void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args);
 
 int xll_load(const char* xll_path);

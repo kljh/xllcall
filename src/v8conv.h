@@ -37,6 +37,7 @@ v8::Local<v8::Value> xloper_2_v8value(v8::Isolate* isolate, const xloper12& x);
 bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, std::string& x);
 bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, std::wstring& x);
 bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, double& x);
+bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, long& x);
 bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, bool& x);
 bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, int& x);
 bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, std::vector<std::string>& x);

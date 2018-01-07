@@ -23,7 +23,7 @@
       },
       'conditions': [
         [
-          # How to test for ia32 vs x64 arch ?
+          # How to test for ia32 vs x64 arch ? !!
           'OS=="win_x86"', 
           {
             "sources": [
@@ -47,7 +47,6 @@
           },
         ], 
       ],
-      
     }, 
     {
       "target_name": "xlcall32",
@@ -58,7 +57,6 @@
         "src/xlcall32/xlcall32.cpp", 
         "src/xlcall32/hwnd.cpp", 
       ],
- 
     }
   ]
 }

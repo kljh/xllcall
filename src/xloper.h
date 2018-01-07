@@ -5,10 +5,11 @@
 #include "xlsdk97/xlcall.h"
 
 struct XLOper : public xloper {
-    /*
     // scalar constructors
     ~XLOper();
     XLOper();
+
+    /*
     XLOper(const XLOper&);
     XLOper(const XLOper&&);
     
@@ -30,5 +31,7 @@ struct XLOper : public xloper {
     */
 };
 
-struct XLOper12 : public xloper12 {    
+struct XLOper12 : public xloper12 {
+    ~XLOper12();
+    XLOper12();
 };
