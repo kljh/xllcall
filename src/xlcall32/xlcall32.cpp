@@ -18,18 +18,30 @@ That's can be done with CAPIHook.
 
 */
 
+//#pragma pack(1)
+
+#include "../xloper.h"
 #define XLCALL32_EXPORTS
 #include "xlcall32.h"
 #include "../xlsdk97/xlcall.h"
 
-// functions exposed by the XLL to XL
-typedef int (*xlAutoOpen_t)(void);
-typedef int (*xlAutoClose_t)(void);
-typedef void (*xlAutoFree_t)(xloper*);
-typedef void (*xlAutoFree12_t)(xloper12*);
-
 #include "hwnd.h"
 #include <sstream>
+#include <map>
+
+static excel4v_t s_excel4v_ptr = NULL;
+
+extern "C"
+__declspec(dllexport)
+void set_excel4v(excel4v_t ptr) {
+	printf("%s: sizeof int %i.\n", __FUNCTION__, (int)sizeof(int));
+	printf("%s: sizeof XLOPER %i.\n", __FUNCTION__, (int)sizeof(XLOPER));
+	s_excel4v_ptr = ptr;
+}
+set_excel4v_t sxl4v = set_excel4v;
+
+
+
 
 BOOL APIENTRY DllMain( 
 	HMODULE hModule,
@@ -84,6 +96,13 @@ int _cdecl Excel4(int xlfn, LPXLOPER operRes, int count, ... )
 	return Excel4v(xlfn, operRes, count, opers.empty()?0:&opers[0]);
 }
 
+struct xll_function_t {
+	std::string xll_path, proc_name, proto, fct_name, arg_names;
+	size_t id;
+};
+typedef std::map<std::string, xll_function_t> xll_function_registry_t;
+static xll_function_registry_t xll_function_registry;
+
 // pragma below is equivalent to the information from xlcall32.def 
 // #pragma comment(linker, "/EXPORT:Excel4v,@3")
 int pascal Excel4v(int xlfn, LPXLOPER ret, int n, LPXLOPER args[])
@@ -98,7 +117,7 @@ int pascal Excel4v(int xlfn, LPXLOPER ret, int n, LPXLOPER args[])
 	const char* xlfn_name = 0;
 	XLOPER& res = *ret;
 	switch (xlfn) {
-		case xlFree:
+		case xlFree: 
 			xlfn_name = "xlFree MISSING => LEAKING !!";
 			break;
 		case xlSheetId:
@@ -106,8 +125,15 @@ int pascal Excel4v(int xlfn, LPXLOPER ret, int n, LPXLOPER args[])
 			return xlretSuccess;
 		case xlfGetWorkspace:
 			// xlfGetWorkspace with first argument set to 2 queries for the version of Excel formated as string
-			xlfn_name = "xlfGetWorkspace";
-			break;
+			if (s_excel4v_ptr)
+				return s_excel4v_ptr(xlfn, ret, n, args);
+			else {
+				xlfn_name = "xlfGetWorkspace";
+				res.val.str = "x4.0";
+				res.val.str[0] = 1;
+				res.xltype = xltypeStr;
+				break;
+			}
 		case xlSheetNm:
 			xlfn_name = "xlSheetNm";
 			break;
@@ -126,9 +152,23 @@ int pascal Excel4v(int xlfn, LPXLOPER ret, int n, LPXLOPER args[])
 			xlfn_name = "xlGetName";
 			break;
 		case xlfRegister:
-			xlfn_name = "xlfRegister MISSING";
+		{
+			xlfn_name = "xlfRegister";
+			xll_function_t xll_fct;
+			xll_fct.xll_path = (XLOper&)*args[0];
+			xll_fct.proc_name = (XLOper&)*args[1]; // "\tSyncMacro\x2>B*SyncMacro_eb7302a7120a5b6c8ec6d9fbf379dd53\x5value"
+			xll_fct.proto = (XLOper&)*args[2]; //  "\x2>B*SyncMacro_eb7302a7120a5b6c8ec6d9fbf379dd53\x5value"
+			xll_fct.fct_name = (XLOper&)*args[3]; //  "*SyncMacro_eb7302a7120a5b6c8ec6d9fbf379dd53\x5value"
+			xll_fct.arg_names = (XLOper&)*args[4]; //  "\x5value"
+			//double method_kind = (XLOper&)*args[5]; //  num=2.0
+			xll_fct.id = xll_function_registry.size();
+
+			xll_function_registry[xll_fct.fct_name] = xll_fct;
+
+			res.xltype = xltypeNum;
+			res.val.num = xll_fct.id;
 			break;
-		
+		}
 		case xlfCaller:
 			xlfn_name = "xlfCaller";
 			break;
@@ -137,8 +177,13 @@ int pascal Excel4v(int xlfn, LPXLOPER ret, int n, LPXLOPER args[])
 			break;
 		case xlcMessage:
 			xlfn_name = "xlcMessage";
+			if (n>1) {
+				std::string msg = (XLOper&)*args[1]; // 2nd argument (1st argument is a boolean)
+				fprintf(stderr, ">>> %s\n", msg.c_str());
+			} else {
+				fprintf(stderr, ">>> ---\n");
+			}
 			break;
-
 	}
 
 	if (xlfn_name)

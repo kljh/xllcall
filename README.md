@@ -52,7 +52,11 @@ This based on a core function ``xllcall_ffi`` which invokes a XLL function knowi
 xllcall_ffi(xll_name, fct_name, [ return_type, arg_types, ...], [ arg_values, ... ])
 ```
 
-See ``index.js`` and ``server.js`` for a more advance use, fetching list of XLL exported functions, creative Javascript stub for them and starting a HTTP server for RPC.
+See ``index.js`` and ``server.js`` for a more advance use, fetching list of exported functions, creating Javascript stub for them and starting a HTTP server for RPC.
+
+### Tested configuration
+
+Excel DNA 0.34.6 with Node 32 bit and using Excel 97 (work needed to make it work with 64 bit, using Excel 2007 API) 
 
 ### Conversion Rules between JS and XLL
 

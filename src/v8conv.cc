@@ -253,7 +253,7 @@ bool v8value_2_xloper_array(v8::Isolate* isolate, size_t arg_pos, const v8::Loca
     size_t nb_cols = 0;
     for (size_t i=0; i<nb_rows; i++) {
         if (!v8_rows->Get(0)->IsArray()) {
-            nb_cols = std::max(1U, nb_cols);
+            nb_cols = std::max((size_t)1U, nb_cols);
             //printf("%s: sub-element %i is not an array, treating 1D array a columns ranges.\n", __FUNCTION__, (int)i); 
             //return false; 
         }

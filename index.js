@@ -15,8 +15,7 @@ addon.xllcall_debug_v8(false);
 process.env.PATH = __dirname + "\\build\\Release;" + process.env.PATH;
 //console.log("PATH", process.env.PATH.split(';'));
 
-//process.chdir(xll_path)
-//console.log("CWD", process.cwd());
+//console.log("Current Working Directory", process.cwd());
 
 /*
 required keys:
@@ -40,10 +39,11 @@ function get_registered_functions(xll_path, opt_prms) {
     var fct_name = prms.fct_name || "XlXlRegisteredFunctions";
     var fct_type = prms.fct_type || "xloper*";
     var arg_types = prms.arg_types || [ "xloper*" ]; // [ "char*", "xloper*", "double"]
+    var arg_names = prms.arg_names;
     var arg_vals = prms.arg_vals || []; // [ "abc", [[11,12],[21,22]], 1.234 ]
     
     //console.log("fct_name", fct_name);
-    var fcts = addon.xllcall_ffi_v8(xll_path, fct_name, fct_type, arg_types, arg_vals); 
+    var fcts = addon.xllcall_ffi_v8(xll_path, fct_name, fct_type, arg_types, arg_names, arg_vals); 
     console.log("#fcts", fcts.length);
 
     var key_mapping = prms.key_mapping || {
@@ -71,8 +71,10 @@ function get_registered_functions(xll_path, opt_prms) {
 
 function xllcall_proto_check(xl_name) {
     var fct = global_fct_map[xl_name];
-    if (!fct) 
+    if (!fct) {
+        //console.warn("Registered functions:", Object.keys(global_fct_map).sort());
         throw new Error(xl_name+": unknown function (not registered)"); 
+    }
     if (fct.fct_type && fct.arg_types) 
         return fct;
 
@@ -120,12 +122,12 @@ function xllcall_stub(xl_name) {
     var stub = function() {
         var arg_vals = Array.from(arguments);
         try {
-            var res = addon.xllcall_ffi_v8(fct.xll_path, fct.fct_name, fct.fct_type, fct.arg_types, arg_vals); 
+            var res = addon.xllcall_ffi_v8(fct.xll_path, fct.fct_name, fct.fct_type, fct.arg_types, fct.arg_names, arg_vals); 
         } catch (e) {
             var nb_args = arg_vals.length;
             console.error("Error while calling "+xl_name, fct, !nb_args ? " with no args." : " with args:");
             for (var a=0; a<nb_args; a++)
-                console.error("arg "+(a+1)+"/"+nb_args+": ", arg_vals[a]);
+                console.error("arg "+(a+1)+"/"+nb_args+" "+(fct.arg_names?fct.arg_names[a]:undefined)+": ", arg_vals[a]);
             throw e;
         }
         return res;
@@ -134,13 +136,18 @@ function xllcall_stub(xl_name) {
 }
 
 function xldna_init(xldna_xll_path) {
-    var xldna_path = xldna_xll_path || path.join(__dirname, "ExcelDna\\ExcelDna-0.34.6\\ExcelDna\\Distribution\\ExcelDna64.xll");
+    console.log("process.arch", process.arch);
+    var path_suffix = process.arch=="x64" ? "64" : "";
+    var xldna_path = xldna_xll_path || path.join(__dirname, "ExcelDna\\ExcelDna-0.34.6\\ExcelDna\\Distribution\\ExcelDna"+path_suffix+".xll");
+    var xldna_path = xldna_xll_path || path.join(__dirname, "ExcelDna\\ExcelDna-0.34.6\\ExcelDna\\Source\\ExcelDna\\Debug"+path_suffix+"\\ExcelDna"+path_suffix+".xll");
     if (!fs.existsSync(xldna_path)) 
-        throw new Error("xldna_path does not exist", xldna_path);
+        throw new Error("xldna_path does not exist. "+xldna_path);
     
     var xldna_folder = path.dirname(xldna_path);
     process.env.PATH = xldna_folder + ";" + process.env.PATH;
     
+    addon.xllload_xlAutoOpen_v8(xldna_path);
+
     set_registered_functions({
         RegistrationInfo : { fct_name: "RegistrationInfo", proto: "QQ", xll_path: xldna_path },
         SyncMacro : { fct_name: "SyncMacro", proto: ">B", xll_path: xldna_path },
@@ -154,18 +161,18 @@ function xldna_init(xldna_xll_path) {
         //var SyncMacro =  xllcall_stub("SyncMacro");
         var f0_addthem_97 =  xllcall_stub("f0");
 
-        //var res = RegistrationInfo();
-        //console.log("RegistrationInfo", res);
+        var res = RegistrationInfo();
+        console.log("RegistrationInfo", res);
         
-        var res = f0_addthem_97("sa",3);
+        var res = f0_addthem_97("Lupin dog no", 1);
         console.log("addthem", res);
     };
 }
 
 function vision_init(vision_xll_path) {
-    var xll_path = vision_xll_path || path.join(__dirname, "vision.xll"); // or path.join(process.env.APPDATA, "vision\\bin\\x86");
+    var xll_path = vision_xll_path || path.join(__dirname, "bin\\x64\\vision.xll"); // or path.join(process.env.APPDATA, "vision\\bin\\x86");
     if (!fs.existsSync(xll_path)) 
-        throw new Error("xll_path does not exist", xll_path);
+        throw new Error("xll_path does not exist. "+xll_path);
     
     var fct_map = get_registered_functions(xll_path);
     set_registered_functions(fct_map);
@@ -174,7 +181,7 @@ function vision_init(vision_xll_path) {
     
     // force stub creation of all functions, and define them ing lobal scope
     if (1) {
-        for (f in fct_map) 
+        for (var f in fct_map) 
             global[f] = xllcall_stub(f);
     }
 
@@ -182,13 +189,19 @@ function vision_init(vision_xll_path) {
     if (1) {
         var XlSet = xllcall_stub("XlSet");
         var XlGet = xllcall_stub("XlGet");
+        var XlAutoFit = xllcall_stub("XlAutoFit");
         
+        //console.log(fct_map["XlSet"])
         console.log("XlSet1", XlGet(XlSet("tkr", "abc")));
         console.log("XlSet2", XlGet(XlSet("tkr", 123)));
         console.log("XlSet3", XlGet(XlSet("tkr", true)));
         //try { console.log("XlSet4", XlGet(XlSet("tkr", [ 1, 2, 3 ]))); } catch(e) { console.warn("XlSet4", e)}
         console.log("XlSet5", XlGet(XlSet("tkr", [[ 11, 12 ], [21, 22 ]])));
         console.log("XlSet6", XlGet(XlSet([["tkr"]], [[ 11, 12 ], [21, 22 ]])));
+
+        // this function calls back Excel to ask the size of the target range
+        console.log("XlAutoFit", XlAutoFit("abc"));
+        console.log("XlAutoFit", XlAutoFit([[ "abc", 123 ], [ true, 456 ]]));
     }
 }
 

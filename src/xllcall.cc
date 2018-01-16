@@ -1,9 +1,11 @@
 #include "xllcall.h"
 #include "xloper.h"
 #include "v8conv.h"
+#include "xlcall32/xlcall32.h"
 #include <dyncall/dyncall.h>
 #include <dyncall/dyncall_signature.h>
 
+#include <excpt.h>
 #include <stdio.h>
 #include <map>
 
@@ -86,6 +88,48 @@ void* get_fct_ptr(const std::string& dll_path, const std::string& fct_name) {
     return fct_ptr;
 }
 
+int seh_filter(unsigned int code, struct _EXCEPTION_POINTERS *ep) {
+    fprintf(stderr, "seh_filter (%i).\n", code);
+    return EXCEPTION_EXECUTE_HANDLER;  // 1
+    //return EXCEPTION_CONTINUE_SEARCH;  // 0 
+    //return EXCEPTION_CONTINUE_EXECUTION;  // -1
+};
+
+void xllload_xlAutoOpen_v8(const v8::FunctionCallbackInfo<v8::Value>& args);
+void xllload_xlAutoOpen_v8_seh(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    __try {
+        xllload_xlAutoOpen_v8(args);
+    } __except(seh_filter(GetExceptionCode(), GetExceptionInformation())) {
+        fprintf(stderr, " --- XLLCALL32 STRUCTURED EXCEPTION HANDLER --- \n");
+    }
+}
+void xllload_xlAutoOpen_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    printf("%s: sizeof int %i.\n", __FUNCTION__, (int)sizeof(int));
+	printf("%s: sizeof XLOPER %i.\n", __FUNCTION__, (int)sizeof(XLOPER));
+    set_excel4v_t sxl4v = (set_excel4v_t)get_fct_ptr("xlcall32.dll", "set_excel4v");
+	sxl4v((excel4v_t)nullptr);
+
+    v8::Isolate* isolate = args.GetIsolate();
+    
+    if (args.Length()==0 || !args[0]->IsString()) {
+        isolate->ThrowException(v8::Exception::TypeError(
+            v8::String::NewFromUtf8(isolate, "xllcall_debug: expects one string argument")));
+        return;
+    }
+
+    std::string xll_path;
+    if (!v8value_2_native(isolate, args[0], xll_path)) return;
+
+    typedef short   (__stdcall *PFN_SHORT_VOID)();
+    printf("%s: looking for xlAutoOpen in %s.\n", __FUNCTION__, xll_path.c_str());
+    PFN_SHORT_VOID xlAutoOpen_ptr = (PFN_SHORT_VOID)get_fct_ptr(xll_path, "xlAutoOpen");
+    printf("%s: calling for xlAutoOpen in %s.\n", __FUNCTION__, xll_path.c_str());
+    xlAutoOpen_ptr();
+
+    printf("%s: done.\n", __FUNCTION__);
+    args.GetReturnValue().Set(args[0]);
+}
+
 struct ctypes_memory_holder_item_t {
     std::string m_string;
     std::wstring m_wstring;
@@ -94,6 +138,14 @@ struct ctypes_memory_holder_item_t {
 };
 typedef std::vector<ctypes_memory_holder_item_t> ctypes_memory_holder_t;
 
+void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args);
+void xllcall_ffi_v8_seh(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    __try {
+        xllcall_ffi_v8(args);
+    } __except(seh_filter(GetExceptionCode(), GetExceptionInformation())) {
+        fprintf(stderr, " --- XLLCALL32 STRUCTURED EXCEPTION HANDLER --- \n");
+    }
+}
 void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
     bool bVerbose = xllcall_debug();
 
@@ -101,18 +153,18 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
     v8::Isolate* isolate = args.GetIsolate();
 
     // Check the number of arguments passed.
-    if (args.Length() != 5) {
+    if (args.Length() != 6) {
         // Throw an Error that is passed back to JavaScript
         fprintf(stderr, "%s: #args %i", __FUNCTION__, (int)args.Length());
         isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "xllcall_ffi: wrong number of arguments, 5 expected: (xll_path, fct_name, return_type, arg_types, arg_vals)")));
+            v8::String::NewFromUtf8(isolate, "xllcall_ffi: wrong number of arguments, 5 expected: (xll_path, fct_name, return_type, arg_types, arg_names, arg_vals)")));
         return;
     }
 
     // Check the argument types
-    if (!args[0]->IsString() || !args[1]->IsString() || !args[2]->IsString() || !args[3]->IsArray() || !args[4]->IsArray()) {
+    if (!args[0]->IsString() || !args[1]->IsString() || !args[2]->IsString() || !args[3]->IsArray() || (!args[4]->IsUndefined()&&!args[4]->IsArray()) || !args[5]->IsArray()) {
         isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "xllcall_ffi: wrong arguments types, expected (string, string, string, array, array)")));
+            v8::String::NewFromUtf8(isolate, "xllcall_ffi: wrong arguments types, expected (string, string, string, array, ?array, array)")));
         return;
     }
 
@@ -139,15 +191,19 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
     const char* fct_abi = 0; 
     const char* fct_type = return_type.c_str();
     std::vector<std::string> arg_types;	// [nbArgs]
+    std::vector<std::string> arg_names;	// [nbArgs]
     if (!v8value_2_native(isolate, args[3], arg_types)) return;
+    if (!v8value_2_native(isolate, args[4], arg_types)) return;
     size_t nb_arg_types = arg_types.size();
-
-    if (!args[4]->IsArray()) {
+    size_t nb_arg_names = arg_names.size();
+    if (nb_arg_names!=0 && nb_arg_names!=nb_arg_types) {
+        fprintf(stderr, "nb_arg_types: %i", (int)nb_arg_types);
+        fprintf(stderr, "nb_arg_names: %i", (int)nb_arg_names);
         isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "arg_vals not an array")));
-        return;
+            v8::String::NewFromUtf8(isolate, "arg_types and arg_names are different size.")));
     }
-    v8::Local<v8::Array> arg_vals = v8::Handle<v8::Array>::Cast(args[4]);
+
+    v8::Local<v8::Array> arg_vals = v8::Handle<v8::Array>::Cast(args[5]);
     size_t nb_args_vals = arg_vals->Length();
 
     if (bVerbose) {
@@ -157,11 +213,12 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
     }
 
     DCCallVM* vm = 0;
-    try {
+    //try 
+    {
         vm = dcNewCallVM(4096);
         dcReset(vm);
 
-#ifdef WIN64
+#ifdef _WIN64
         // only one callling convention in 64 bit
         dcMode(vm, DC_CALL_C_X64_WIN64);
 #else
@@ -404,7 +461,7 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
         }
         //if (bVerbose) printf("%s: memory holder for arguments - after destruction.\n", __FUNCTION__);
 
-    } catch (std::exception& e) {
+    /* } catch (std::exception& e) {
         if (vm) {
             dcFree(vm); vm = 0;
         }
@@ -412,6 +469,7 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
         isolate->ThrowException(v8::Exception::TypeError(
             v8::String::NewFromUtf8(isolate, "unknown return type (see stderr)")));
         return;
-    }  
+    */
+    }
     if (bVerbose) printf("%s END.\n", __FUNCTION__);
 }

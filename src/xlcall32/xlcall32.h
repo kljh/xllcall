@@ -1,5 +1,10 @@
 #pragma once
 
+#include "../xloper.h"
+
+typedef int (*excel4v_t)(int xlfn, xloper* ret, int n, xloper* args[]);
+typedef void (*set_excel4v_t)(excel4v_t);
+
 #ifdef __cplusplus
 #include <vector>
 #include <string>

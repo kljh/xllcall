@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -22,16 +23,22 @@ struct XLOper : public xloper {
     XLOper(size_t w, size_t h);
     XLOper& item(size_t i, size_t j);
     const XLOper& item(size_t i, size_t j) const;
-
-    operator std::string();
-    operator std::wstring();
+    */
+    
+    operator std::string() const;
+    operator std::wstring() const;
     operator double();
     operator int();
     operator bool();
-    */
 };
 
 struct XLOper12 : public xloper12 {
     ~XLOper12();
     XLOper12();
+
+    operator std::string() const;
+    operator std::wstring() const;
+    operator double();
+    operator int();
+    operator bool();
 };

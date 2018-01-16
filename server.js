@@ -9,14 +9,14 @@ const express = require('express');
 const session = require('express-session')
 const bodyParser = require('body-parser');
 
-// path to XLL and to scripts
+// path to scripts
 const script_root = path.join(__dirname, "..");
 const script_prefix = "";
 const script_suffix = ".js"
 
 // addon to call XLL
 const xll_util = require('./index');
-xll_util.xll_init();
+xll_util.vision_init();
 
 // addon to run a webserver
 const app = express();
