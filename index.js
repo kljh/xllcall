@@ -162,7 +162,8 @@ function xldna_init(xldna_xll_path) {
         var f0_addthem_97 =  xllcall_stub("f0");
 
         var res = RegistrationInfo();
-        console.log("RegistrationInfo", res);
+        if (res) res = res.map(row => row.slice(0,16));
+        console.log("RegistrationInfo (partial rows):", res);
         
         var res = f0_addthem_97("Lupin dog no", 1);
         console.log("addthem", res);
@@ -170,7 +171,7 @@ function xldna_init(xldna_xll_path) {
 }
 
 function vision_init(vision_xll_path) {
-    var xll_path = vision_xll_path || path.join(__dirname, "bin\\x64\\vision.xll"); // or path.join(process.env.APPDATA, "vision\\bin\\x86");
+    var xll_path = vision_xll_path || path.join(__dirname, process.arch=="x64" ? "bin\\x64\\vision.xll" : "bin\\x86\\vision.xll"); // process.env.APPDATA
     if (!fs.existsSync(xll_path)) 
         throw new Error("xll_path does not exist. "+xll_path);
     
@@ -218,8 +219,8 @@ function top_left(x) {
 
 // test 
 if (!module.parent) {
-    //xldna_init();
-    vision_init();
+    xldna_init();
+    //vision_init();
 }
 
 exports.xllcall_debug = addon.xllcall_debug_v8;   // invoke the native implementation

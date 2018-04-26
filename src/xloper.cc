@@ -89,7 +89,8 @@ bool xloper_2_native(const X& xop, T& t) {
         
         if (n==1 && m==1) { 
             size_t i=0, j=0;
-            X* xop_ij = (X*) &(xop.val.array.lparray[i*m+j]);
+            X* lparray = (X*) xop.val.array.lparray;
+            X* xop_ij = (X*) &(lparray[i*m+j]);
             return xloper_2_native_scalar(*xop_ij, t);
         } else {
             return false;

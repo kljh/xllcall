@@ -49,7 +49,8 @@ v8::Local<v8::Value> xloper_2_v8value_impl(v8::Isolate* isolate, X& xop) {
         for (size_t i=0; i<n; i++) {
             v8::Local<v8::Array> row = v8::Array::New(isolate, m);
             for (size_t j=0; j<m; j++) {
-                X* xop_ij = &(xop.val.array.lparray[i*m+j]);
+                X* lparray = (X*) xop.val.array.lparray;
+                X* xop_ij = &(lparray[i*m+j]);
                 row->Set(j, xloper_2_v8value_impl(isolate, *xop_ij));
             }
             rows->Set(i, row);
@@ -264,21 +265,23 @@ bool v8value_2_xloper_array(v8::Isolate* isolate, size_t arg_pos, const v8::Loca
     }
     //printf("%s: %i x %i.\n", __FUNCTION__, (int)nb_rows, (int)nb_cols);
 
+    X* lparray = new X[nb_rows*nb_cols];
+
     x.xltype = xltypeMulti | xlbitXLFree;
     x.val.array.rows = nb_rows;
     x.val.array.columns = nb_cols;
-    x.val.array.lparray = new X[nb_rows*nb_cols];
+    x.val.array.lparray = lparray;
     
     // initialise array with sensible default values
     for (size_t i=0, k=0; i<nb_rows; i++)
         for (size_t j=0; j<nb_cols; j++, k++)
-            x.val.array.lparray[k].xltype = xltypeNil;
+            lparray[k].xltype = xltypeNil;
 
     for (size_t i=0; i<nb_rows; i++) {
         if (!v8_rows->Get(0)->IsArray()) {
             size_t j=0;
             v8::Local<v8::Value> v8_cell = v8_rows->Get(i);
-            if (!v8value_2_xloper_scalar(isolate, arg_pos, v8_cell, (X&)x.val.array.lparray[i*nb_cols+j])) {
+            if (!v8value_2_xloper_scalar(isolate, arg_pos, v8_cell, (X&)lparray[i*nb_cols+j])) {
                 fprintf(stderr, "%s: problem converting xloper[%i][%i] of %ix%i array.\n", __FUNCTION__, (int)(i+1), (int)(j+1), (int)nb_rows, (int)nb_cols);
                 return false;
             }
@@ -287,7 +290,7 @@ bool v8value_2_xloper_array(v8::Isolate* isolate, size_t arg_pos, const v8::Loca
             size_t nb_elnts = (size_t)v8_row->Length();
             for (size_t j=0; j<nb_elnts; j++) {
                 v8::Local<v8::Value> v8_cell = v8_row->Get(j);
-                if (!v8value_2_xloper_scalar(isolate, arg_pos, v8_cell, (X&)x.val.array.lparray[i*nb_cols+j])) {
+                if (!v8value_2_xloper_scalar(isolate, arg_pos, v8_cell, (X&)lparray[i*nb_cols+j])) {
                     fprintf(stderr, "%s: problem converting xloper[%i][%i] of %ix%i array.\n", __FUNCTION__, (int)(i+1), (int)(j+1), (int)nb_rows, (int)nb_cols);
                     return false;
                 }

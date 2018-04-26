@@ -9,9 +9,10 @@
 #include <map>
 
 template <class X>
-int excel_callback(int xlfn, LPXLOPER ret, int n, LPXLOPER args[]) {	
+int excel_callback(int xlfn, X* ret, int n, X* args[]) {	
 	return xlretSuccess;
 }
 
-int excel4v_callback(int xlfn, LPXLOPER ret, int n, LPXLOPER args[]);
-int excel12v_callback(int xlfn, LPXLOPER ret, int n, LPXLOPER12 args[]);
+int excel4v_callback(int xlfn, LPXLOPER ret, int n, LPXLOPER args[]) { 
+	return excel_callback(int xlfn, LPXLOPER ret, int n, LPXLOPER args[]);
+}

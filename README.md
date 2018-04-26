@@ -1,5 +1,6 @@
 # xllcall
 
+[![Travis CI][travis-image]][travis-url]
 [![NPM Version][npm-image]][npm-url]
 [![NPM Downloads][downloads-image]][downloads-url]
 
@@ -81,7 +82,8 @@ Argument conversion depends on the expected type for the argument:
   * one dimensionnal array becomes column ranges
 
 
-
+[travis-image]: https://img.shields.io/travis/kljh/xllcall.svg
+[travis-url]: https://travis-ci.org/kljh/xllcall
 [npm-image]: https://img.shields.io/npm/v/xllcall.svg
 [npm-url]: https://npmjs.org/package/xllcall
 [downloads-image]: https://img.shields.io/npm/dm/xllcall.svg
