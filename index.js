@@ -226,8 +226,10 @@ if (!module.parent) {
 exports.xllcall_debug = addon.xllcall_debug_v8;   // invoke the native implementation
 exports.xllcall_ffi = addon.xllcall_ffi_v8;       // invoke the native implementation
 exports.xllcall_stub = xllcall_stub;
-exports.top_left = top_left;
+exports.xllcall_proto_check = xllcall_proto_check;
+exports.global_fct_map = global_fct_map;
 exports.get_registered_functions = get_registered_functions;
 exports.set_registered_functions = set_registered_functions;
 exports.vision_init = vision_init;
 exports.xldna_init = xldna_init;
+exports.top_left = top_left;
