@@ -115,13 +115,22 @@ app.use(function (req, res, next) {
             res.send(response_json);
             console.log("response sent. #"+response_json.length+"\n")
         })
-        .catch(next);
+        .catch(err => {
+            console.error("request error: ", request, "\n", err, "\n");
+            try {
+                var msg = JSON.stringify(err, null, 4);
+                res.status(500).send(msg);
+            } catch (e) {
+                var msg = JSON.stringify({ error: ""+err })
+                res.status(500).send(msg);
+            }
+        });
 
     } catch (e) {
-        console.error("request error sent. "+e+".\n", request, "\n");
+        console.error("request error: ", request, "\n", e, "\n");
         res.status(500).send(JSON.stringify({
-                error: ""+e,
-                stack: e.stack.split('\n'),
+                error: ""+(e.message||e),
+                stack: e.stack && e.stack.split('\n'),
             }, null, 4));
     }
 });
