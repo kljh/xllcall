@@ -201,6 +201,7 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
         fprintf(stderr, "nb_arg_names: %i", (int)nb_arg_names);
         isolate->ThrowException(v8::Exception::TypeError(
             v8::String::NewFromUtf8(isolate, "arg_types and arg_names are different size.")));
+		return;
     }
 
     v8::Local<v8::Array> arg_vals = v8::Handle<v8::Array>::Cast(args[5]);
