@@ -28,6 +28,7 @@ server.listen(http_port, function () { console.log('HTTP server started on port:
 app.use(bodyParser.text())
 app.use(bodyParser.urlencoded({ extended: false }))
 app.use(bodyParser.json())
+app.set('json spaces', 4);  // indentation of res.json() responses
 
 app.use(function (req, res, next) {
     switch (req.path) {
@@ -106,31 +107,32 @@ app.use(function (req, res, next) {
             var response_json;
             switch (typeof response_resolved) {
                 case "object" :
-                    response_json = JSON.stringify(response_resolved,null,2); break;
+                case "number" :
+                case "boolean" :
+                    res.json(response_resolved); break;
                 case "undefined":
-                    response_json = "null";
+                    res.json(null); break;
                 default:
-                    response_json = "" + response_resolved;
+                    res.send(""+response_resolved);
             }
-            res.send(response_json);
-            console.log("response sent. #"+response_json.length+"\n")
+            console.log("response sent. \n")
         })
         .catch(err => {
             console.error("request error: ", request, "\n", err, "\n");
             try {
-                var msg = JSON.stringify(err, null, 4);
-                res.status(500).send(msg);
+                var msg = { error: err };
+                res.status(500).json(msg);
             } catch (e) {
-                var msg = JSON.stringify({ error: ""+err })
-                res.status(500).send(msg);
+                var msg = { error: ""+err };
+                res.status(500).json(msg);
             }
         });
 
     } catch (e) {
         console.error("request error: ", request, "\n", e, "\n");
-        res.status(500).send(JSON.stringify({
+        res.status(500).json({
                 error: ""+(e.message||e),
                 stack: e.stack && e.stack.split('\n'),
-            }, null, 4));
+            });
     }
 });
