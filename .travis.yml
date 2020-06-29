@@ -2,6 +2,6 @@ language: node_js
 os: 
   - windows
 node_js:
-  - "10"
+  - "12"
   - "node"
   
