@@ -15,9 +15,17 @@ std::string xloper_char_ptr_2_string(const XCHAR *pc) {
     return s;
 }}
 
+namespace {
+bool throw_v8_exception(v8::Isolate* isolate, const char * msg) {
+    isolate->ThrowException(v8::Exception::TypeError(
+        v8::String::NewFromUtf8(isolate, msg, v8::NewStringType::kInternalized).ToLocalChecked() ));
+    return false;
+}}
 
 template <class X>
 v8::Local<v8::Value> xloper_2_v8value_impl(v8::Isolate* isolate, X& xop) {  
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+
     v8::Local<v8::Value> res;
     //printf("%s xltype=0x%x \n", __FUNCTION__, (int)xop.xltype);
 
@@ -51,16 +59,15 @@ v8::Local<v8::Value> xloper_2_v8value_impl(v8::Isolate* isolate, X& xop) {
             for (size_t j=0; j<m; j++) {
                 X* lparray = (X*) xop.val.array.lparray;
                 X* xop_ij = &(lparray[i*m+j]);
-                row->Set(j, xloper_2_v8value_impl(isolate, *xop_ij));
+                row->Set(context, j, xloper_2_v8value_impl(isolate, *xop_ij));
             }
-            rows->Set(i, row);
+            rows->Set(context, i, row);
         }
 
         res = rows;
     } else {
         fprintf(stderr, "%s: unhandled xltype, to complete. xop.xltype=%i.\n", __FUNCTION__, (int)xop.xltype);
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "xloper_2_v8value: unhandled xltype, code to complete")));
+        throw_v8_exception(isolate, "xloper_2_v8value: unhandled xltype, code to complete");
     }
 
     return res;
@@ -84,14 +91,21 @@ bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, std::
         return true;
     }
     if (!v->IsString()) {
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "v8 value not a string")));
-        return false;
+        return throw_v8_exception(isolate, "v8 value not a string");
     }
 
-    x = std::string(*v8::String::Utf8Value(v));
+    x = std::string(*v8::String::Utf8Value(isolate, v));
     return true;
 }
+
+bool v8value_2_native(v8::Isolate* isolate, v8::MaybeLocal<v8::Value>& v, std::string& x)
+{
+    if (v.IsEmpty()) 
+        return true;
+    
+    return v8value_2_native(isolate, v.ToLocalChecked(), x);
+}
+
 
 bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, std::wstring& x)
 {
@@ -99,47 +113,45 @@ bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, std::
         return true;
     }
     if (!v->IsString()) {
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "v8 value not a wstring")));
-        return false;
+        return throw_v8_exception(isolate, "v8 value not a wstring");
     }
 
-    std::string s(*v8::String::Utf8Value(v));
+    std::string s(*v8::String::Utf8Value(isolate, v));
     x = std::wstring(s.begin(), s.end());
     return true;
 }
 
 bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, double& x)
 {
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+
     if (v->IsUndefined() || v->IsNull()) {
         x = 0.0;
         return true;
     }
     if (!v->IsNumber()) {
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "v8 value not a double")));
-        return false;
+        return throw_v8_exception(isolate, "v8 value not a double");
     }
 
     // NumberValue --OR-- IntegerValue
-    x = v->NumberValue();
+    x = v->NumberValue(context).FromMaybe(0.0);
     return true;
 }
 
 bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, long& x)
 {
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+
     if (v->IsUndefined() || v->IsNull()) {
         x = 0;
         return true;
     }
     if (!v->IsNumber()) {
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "v8 value not a double")));
-        return false;
+        return throw_v8_exception(isolate, "v8 value not a double");
     }
 
     // NumberValue --OR-- IntegerValue
-    x = (long)v->NumberValue();
+    x = (long)v->NumberValue(context).FromMaybe(0.0);
     return true;
 }
 
@@ -150,31 +162,29 @@ bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v, bool&
         return true;
     }
     if (!v->IsBoolean()) {
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "v8 value not a boolean")));
-        return false;
+        return throw_v8_exception(isolate, "v8 value not a boolean");
     }
 
-    x = v->BooleanValue();
+    x = v->BooleanValue(isolate);
     return true;
 }
 
 bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v8_val, std::vector<std::string>& vx)
 {
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+
     if (v8_val->IsUndefined() || v8_val->IsNull()) return true;
     if (!v8_val->IsArray()) {
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "v8value_2_native: v8 value not an array")));
-        return false;
+        return throw_v8_exception(isolate, "v8value_2_native: v8 value not an array");
     }
 
     v8::HandleScope scope(isolate);
-    v8::Local<v8::Array> v8_array = v8::Handle<v8::Array>::Cast(v8_val);
+    v8::Local<v8::Array> v8_array = v8::Local<v8::Array>::Cast(v8_val);
 
     size_t n = v8_array->Length();
     vx.resize(n);
     for (size_t i=0; i<n; i++) {
-        v8::Local<v8::Value> v8_element = v8_array->Get(i);
+        v8::MaybeLocal<v8::Value> v8_element = v8_array->Get(context, i);
         
         if (!v8value_2_native(isolate, v8_element, vx[i])) return false;
     }
@@ -184,8 +194,7 @@ bool v8value_2_native(v8::Isolate* isolate, const v8::Local<v8::Value>& v8_val, 
 
 v8::Local<v8::Array> v8Value_to_v8array(v8::Isolate* isolate, size_t arg_pos, const v8::Local<v8::Value>& v) {
     if (!v->IsArray()) {
-        //isolate->ThrowException(v8::Exception::TypeError(
-        //  v8::String::NewFromUtf8(isolate, "v8Value_to_v8array: v8 value not an array")));
+        throw_v8_exception(isolate, "v8Value_to_v8array: v8 value not an array");
         return v8::Local<v8::Array>();
     }
     return v8::Local<v8::Array>::Cast(v);
@@ -238,9 +247,7 @@ bool v8value_2_xloper_scalar(v8::Isolate* isolate, size_t arg_pos, const v8::Loc
         x.val.xbool = b;
 
     } else {
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "v8value_2_xloper_scalar: v8 value not a scalar")));
-        return false;
+        return throw_v8_exception(isolate, "v8value_2_xloper_scalar: v8 value not a scalar");
     } 
     return true;
 }
@@ -248,18 +255,23 @@ bool v8value_2_xloper_scalar(v8::Isolate* isolate, size_t arg_pos, const v8::Loc
 template <class X>
 bool v8value_2_xloper_array(v8::Isolate* isolate, size_t arg_pos, const v8::Local<v8::Value>& v8_val, X& x)
 {
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
     v8::Local<v8::Array> v8_rows = v8Value_to_v8array(isolate, arg_pos, v8_val);
     
     size_t nb_rows = v8_rows->Length();
     size_t nb_cols = 0;
     for (size_t i=0; i<nb_rows; i++) {
-        if (!v8_rows->Get(0)->IsArray()) {
+        v8::MaybeLocal<v8::Value> maybeRow = v8_rows->Get(context, i);
+        if (maybeRow.IsEmpty()) continue;
+        v8::Local<v8::Value> row = maybeRow.ToLocalChecked();
+        
+        if (!row->IsArray()) {
             nb_cols = std::max((size_t)1U, nb_cols);
             //printf("%s: sub-element %i is not an array, treating 1D array a columns ranges.\n", __FUNCTION__, (int)i); 
             //return false; 
         }
         else { 
-            v8::Local<v8::Array> v8_row = v8Value_to_v8array(isolate, arg_pos, v8_rows->Get(0));
+            v8::Local<v8::Array> v8_row = v8Value_to_v8array(isolate, arg_pos, row);
             nb_cols = std::max((size_t)v8_row->Length(), nb_cols);
         }
     }
@@ -278,18 +290,24 @@ bool v8value_2_xloper_array(v8::Isolate* isolate, size_t arg_pos, const v8::Loca
             lparray[k].xltype = xltypeNil;
 
     for (size_t i=0; i<nb_rows; i++) {
-        if (!v8_rows->Get(0)->IsArray()) {
+        v8::MaybeLocal<v8::Value> maybeRow = v8_rows->Get(context, i);
+        if (maybeRow.IsEmpty()) continue;
+        v8::Local<v8::Value> row = maybeRow.ToLocalChecked();
+        
+        if (!row->IsArray()) {
             size_t j=0;
-            v8::Local<v8::Value> v8_cell = v8_rows->Get(i);
+            v8::Local<v8::Value> v8_cell = row;
             if (!v8value_2_xloper_scalar(isolate, arg_pos, v8_cell, (X&)lparray[i*nb_cols+j])) {
                 fprintf(stderr, "%s: problem converting xloper[%i][%i] of %ix%i array.\n", __FUNCTION__, (int)(i+1), (int)(j+1), (int)nb_rows, (int)nb_cols);
                 return false;
             }
         } else {
-            v8::Local<v8::Array> v8_row = v8Value_to_v8array(isolate, arg_pos, v8_rows->Get(i));
+            v8::Local<v8::Array> v8_row = v8Value_to_v8array(isolate, arg_pos, row);
             size_t nb_elnts = (size_t)v8_row->Length();
             for (size_t j=0; j<nb_elnts; j++) {
-                v8::Local<v8::Value> v8_cell = v8_row->Get(j);
+                v8::MaybeLocal<v8::Value> maybeCell = v8_row->Get(context, j);
+                if (maybeCell.IsEmpty()) continue;
+                v8::Local<v8::Value> v8_cell = maybeCell.ToLocalChecked();
                 if (!v8value_2_xloper_scalar(isolate, arg_pos, v8_cell, (X&)lparray[i*nb_cols+j])) {
                     fprintf(stderr, "%s: problem converting xloper[%i][%i] of %ix%i array.\n", __FUNCTION__, (int)(i+1), (int)(j+1), (int)nb_rows, (int)nb_cols);
                     return false;

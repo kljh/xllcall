@@ -17,8 +17,8 @@
       ],
       'conditions': [
         [
-          # How to test for ia32 vs x64 arch ? !!
-          '"x86"=="x86"', 
+          # Debug tip: add space in front of <! to get an indentation error and see to what value the expression evaluates to.
+          '"<!(node -p process.arch)"=="ia32"',
           {
             "sources": [
               #"src/dyncall/dyncall/dyncall_callvm_x86.c",

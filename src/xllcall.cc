@@ -16,16 +16,22 @@ bool& xllcall_debug() {
     static bool s_b = false;
     return s_b;
 }
+
+namespace {
+void throw_v8_exception(v8::Isolate* isolate, const char * msg) {
+    isolate->ThrowException(v8::Exception::TypeError(
+        v8::String::NewFromUtf8(isolate, msg, v8::NewStringType::kInternalized).ToLocalChecked() ));    // kNormal or kInternalized ?
+}}
+
 void xllcall_debug_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
     v8::Isolate* isolate = args.GetIsolate();
     
     if (args.Length() > 0) {
         if (!args[0]->IsBoolean()) {
-            isolate->ThrowException(v8::Exception::TypeError(
-                v8::String::NewFromUtf8(isolate, "xllcall_debug: expects one optional boolean argument")));
+            throw_v8_exception(isolate, "xllcall_debug: expects one optional boolean argument"); 
             return;
         } else {
-            bool new_value = args[0]->BooleanValue();
+            bool new_value = args[0]->BooleanValue(isolate);
             xllcall_debug() = new_value; 
         }
     }
@@ -112,9 +118,7 @@ void xllload_xlAutoOpen_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
     v8::Isolate* isolate = args.GetIsolate();
     
     if (args.Length()==0 || !args[0]->IsString()) {
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "xllcall_debug: expects one string argument")));
-        return;
+        return throw_v8_exception(isolate, "xllcall_debug: expects one string argument");
     }
 
     std::string xll_path;
@@ -151,40 +155,37 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
     if (bVerbose) printf("%s BEGIN.\n", __FUNCTION__);
     v8::Isolate* isolate = args.GetIsolate();
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
     // Check the number of arguments passed.
     if (args.Length() != 6) {
         // Throw an Error that is passed back to JavaScript
         fprintf(stderr, "%s: #args %i", __FUNCTION__, (int)args.Length());
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "xllcall_ffi: wrong number of arguments, 5 expected: (xll_path, fct_name, return_type, arg_types, arg_names, arg_vals)")));
+        throw_v8_exception(isolate, "xllcall_ffi: wrong number of arguments, 5 expected: (xll_path, fct_name, return_type, arg_types, arg_names, arg_vals)");
         return;
     }
 
     // Check the argument types
     if (!args[0]->IsString() || !args[1]->IsString() || !args[2]->IsString() || !args[3]->IsArray() || (!args[4]->IsUndefined()&&!args[4]->IsArray()) || !args[5]->IsArray()) {
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "xllcall_ffi: wrong arguments types, expected (string, string, string, array, ?array, array)")));
+        throw_v8_exception(isolate, "xllcall_ffi: wrong arguments types, expected (string, string, string, array, ?array, array)");
         return;
     }
 
-    v8::String::Utf8Value s(args[0]);
+    v8::String::Utf8Value s(isolate, args[0]);
     std::string xll_path(*s);
-    //std::string xll_path = v8::String::Utf8Value(args[0]->ToString());
-    std::string fct_name(*v8::String::Utf8Value(args[1]));
-    std::string return_type(*v8::String::Utf8Value(args[2]));
+    //std::string xll_path = v8::String::Utf8Value(isolate, args[0]->ToString());
+    std::string fct_name(*v8::String::Utf8Value(isolate, args[1]));
+    std::string return_type(*v8::String::Utf8Value(isolate, args[2]));
     
     void* fct_ptr = get_fct_ptr(xll_path, fct_name);
     void* xlAutoFree_ptr = get_fct_ptr(xll_path, "xlAutoFree");
     void* xlAutoFree12_ptr = get_fct_ptr(xll_path, "xlAutoFree12");
     if (!fct_ptr && !module_handler_cache[xll_path]) {
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "could not load XLL (check x86 vs x64 arch)")));
+        throw_v8_exception(isolate, "could not load XLL (check x86 vs x64 arch)");
         return;
     }
     if (!fct_ptr) {
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "could not load XLL function")));
+        throw_v8_exception(isolate, "could not load XLL function");
         return;
     }
     
@@ -199,12 +200,11 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
     if (nb_arg_names!=0 && nb_arg_names!=nb_arg_types) {
         fprintf(stderr, "nb_arg_types: %i", (int)nb_arg_types);
         fprintf(stderr, "nb_arg_names: %i", (int)nb_arg_names);
-        isolate->ThrowException(v8::Exception::TypeError(
-            v8::String::NewFromUtf8(isolate, "arg_types and arg_names are different size.")));
-		return;
+        throw_v8_exception(isolate, "arg_types and arg_names are different size.");
+        return;
     }
 
-    v8::Local<v8::Array> arg_vals = v8::Handle<v8::Array>::Cast(args[5]);
+    v8::Local<v8::Array> arg_vals = v8::Local<v8::Array>::Cast(args[5]);
     size_t nb_args_vals = arg_vals->Length();
 
     if (bVerbose) {
@@ -238,8 +238,7 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
         {
             dcFree(vm); vm = 0;
             fprintf(stderr, "%s: unknown calling convention %s.\n", __FUNCTION__, fct_abi);
-            isolate->ThrowException(v8::Exception::TypeError(
-                v8::String::NewFromUtf8(isolate, "unknown calling convention")));
+            throw_v8_exception(isolate, "unknown calling convention");
             return;
         }
 #endif
@@ -291,8 +290,13 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
             bool missing_arg = !(a<nb_args_vals);
             
             const char* arg_type = arg_types[a].c_str();
+            v8::MaybeLocal<v8::Value> maybe_arg_val;
             v8::Local<v8::Value> arg_val;
-            if (!missing_arg) arg_val = arg_vals->Get(a);
+            if (!missing_arg) maybe_arg_val = arg_vals->Get(context, a);
+            if (maybe_arg_val.IsEmpty()) 
+                missing_arg = true;
+            else
+                arg_val = maybe_arg_val.ToLocalChecked();
             
             if (bVerbose) printf("%s: arg %i of type %s.\n", __FUNCTION__, (int)a, arg_type);
             if (_stricmp(arg_type, "XLOPER12*") == 0)
@@ -374,8 +378,7 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
             {
                 dcFree(vm); vm = 0;
                 fprintf(stderr, "%s: unknown argument %i type %s.\n", __FUNCTION__, (int)a, arg_type);
-                isolate->ThrowException(v8::Exception::TypeError(
-                    v8::String::NewFromUtf8(isolate, "unknown argument type (see stderr for details)")));
+                throw_v8_exception(isolate, "unknown argument type (see stderr for details)");
                 return;
             }
         }
@@ -403,8 +406,7 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
                     ((xlAutoFree12_t)xlAutoFree12_ptr)(xop);
                 } else {
                     fprintf(stderr, "%s: no xlAutoFree12 function.\n", __FUNCTION__);
-                    isolate->ThrowException(v8::Exception::TypeError(
-                        v8::String::NewFromUtf8(isolate, "no xlAutoFree12 function")));
+                    throw_v8_exception(isolate, "no xlAutoFree12 function");
                     return;
                 }
             }
@@ -426,8 +428,7 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
                     ((xlAutoFree_t)xlAutoFree_ptr)(xop);
                 } else {
                     fprintf(stderr, "%s: no xlAutoFree function.\n", __FUNCTION__);
-                    isolate->ThrowException(v8::Exception::TypeError(
-                        v8::String::NewFromUtf8(isolate, "no xlAutoFree function")));
+                    throw_v8_exception(isolate, "no xlAutoFree function");
                     return;
                 }
             }
@@ -450,8 +451,7 @@ void xllcall_ffi_v8(const v8::FunctionCallbackInfo<v8::Value>& args) {
         {
             dcFree(vm); vm = 0;
             fprintf(stderr, "%s: unknown return type %s.\n", __FUNCTION__, fct_type);
-            isolate->ThrowException(v8::Exception::TypeError(
-                v8::String::NewFromUtf8(isolate, "unknown return type (see stderr)")));
+            throw_v8_exception(isolate, "unknown return type (see stderr)");
             return;
         }
         
